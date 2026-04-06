@@ -1,19 +1,14 @@
-
 // ================================
 // 🚀 IMPORTAÇÕES
 // ================================
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-
-
-// MongoDB
 const mongoose = require("mongoose");
-
-// Cloudinary
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
+require("dotenv").config();
 
 // ================================
 // ⚙️ CONFIGURAÇÃO DO APP
@@ -25,18 +20,29 @@ app.use(express.json());
 
 
 // ================================
+// 🔐 MIDDLEWARE DE PROTEÇÃO ADMIN
+// ================================
+function checkAdmin(req, res, next) {
+  const senha = req.headers["x-admin-password"];
+
+  if (senha !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Acesso negado" });
+  }
+
+  next();
+}
+
+
+// ================================
 // 🧠 CONEXÃO COM MONGODB
 // ================================
-// 🔥 COLOCA SUA STRING AQUI
-require("dotenv").config();
-
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("🟢 MongoDB conectado"))
   .catch((err) => console.error("🔴 Erro MongoDB:", err));
 
 
 // ================================
-// 🧱 MODEL (EVENTO)
+// 🧱 MODEL
 // ================================
 const EventoSchema = new mongoose.Schema({
   nome: String,
@@ -47,17 +53,17 @@ const Evento = mongoose.model("Evento", EventoSchema);
 
 
 // ================================
-// ☁️ CONFIGURAÇÃO CLOUDINARY
+// ☁️ CLOUDINARY (AGORA COM ENV)
 // ================================
 cloudinary.config({
-  cloud_name: "dbbznwduu",
-  api_key: "552771593718253",
-  api_secret: "11on-WhW1o8iznYQnzQe_Y66gw",
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET,
 });
 
 
 // ================================
-// 📦 STORAGE (UPLOAD CLOUDINARY)
+// 📦 STORAGE CLOUDINARY
 // ================================
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
@@ -76,23 +82,20 @@ const upload = multer({ storage });
 
 
 // ================================
-// 📤 ROTA DE UPLOAD (AGORA COM DB)
+// 📤 UPLOAD (PROTEGIDO)
 // ================================
-app.post("/upload", upload.array("fotos"), async (req, res) => {
+app.post("/upload", checkAdmin, upload.array("fotos"), async (req, res) => {
   try {
     const evento = req.body.evento;
 
     const urls = req.files.map((file) => file.path);
 
-    // 🔥 PROCURA EVENTO
     let eventoExistente = await Evento.findOne({ nome: evento });
 
     if (eventoExistente) {
-      // adiciona novas fotos
       eventoExistente.fotos.push(...urls);
       await eventoExistente.save();
     } else {
-      // cria novo evento
       await Evento.create({
         nome: evento,
         fotos: urls,
@@ -112,7 +115,7 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
 
 
 // ================================
-// 📸 LISTAR FOTOS DO EVENTO (DB)
+// 📸 LISTAR FOTOS
 // ================================
 app.get("/evento/:codigo", async (req, res) => {
   try {
@@ -120,31 +123,18 @@ app.get("/evento/:codigo", async (req, res) => {
 
     const evento = await Evento.findOne({ nome: codigo });
 
-    if (!evento) {
-      return res.json([]);
-    }
+    if (!evento) return res.json([]);
 
     res.json(evento.fotos);
 
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: "Erro ao buscar evento" });
   }
 });
 
 
 // ================================
-// 📦 DOWNLOAD (FUTURO)
-// ================================
-app.get("/download/:codigo", async (req, res) => {
-  res.json({
-    message: "Download ainda não implementado",
-  });
-});
-
-
-// ================================
-// 🧪 ROTA TESTE
+// 🧪 TESTE
 // ================================
 app.get("/", (req, res) => {
   res.send("API rodando com MongoDB + Cloudinary 🚀");
@@ -152,7 +142,7 @@ app.get("/", (req, res) => {
 
 
 // ================================
-// 🚀 START SERVIDOR
+// 🚀 START
 // ================================
 const PORT = process.env.PORT || 5000;
 
