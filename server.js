@@ -13,7 +13,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const upload = multer({ storage: multer.memoryStorage() });
+// 🔥 MULTER COM LIMITE (evita erro 500 por arquivo grande)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB por arquivo
+});
 
 // 🔥 CLOUDINARY
 cloudinary.config({
@@ -56,6 +60,9 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
 
     const { evento } = req.body;
 
+    console.log("Evento recebido:", evento);
+    console.log("Arquivos recebidos:", req.files?.length);
+
     if (!evento) {
       return res.status(400).json({ error: "Evento obrigatório" });
     }
@@ -64,15 +71,26 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
       return res.status(400).json({ error: "Sem fotos" });
     }
 
+    // 🔥 SANITIZAÇÃO DO NOME DO EVENTO (EVITA ERRO NO CLOUDINARY)
+    const eventoSeguro = evento
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]/g, "-");
+
+    console.log("Evento sanitizado:", eventoSeguro);
+
     const urls = [];
 
     for (const file of req.files) {
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder: evento },
+          { folder: eventoSeguro },
           (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
+            if (error) {
+              console.error("🔥 ERRO CLOUDINARY:");
+              console.error(JSON.stringify(error, null, 2));
+              return reject(error);
+            }
+            resolve(result);
           }
         );
 
@@ -82,7 +100,7 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
       urls.push(result.secure_url);
 
       await Foto.create({
-        evento,
+        evento: eventoSeguro,
         url: result.secure_url,
       });
     }
@@ -90,8 +108,10 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
     res.json({ success: true, fotos: urls });
 
   } catch (err) {
-    console.error("❌ ERRO:", err);
-    res.status(500).json({ error: err.message });
+    console.error("❌ ERRO GERAL:");
+    console.error(JSON.stringify(err, null, 2));
+
+    res.status(500).json({ error: err.message || "Erro interno" });
   }
 });
 
