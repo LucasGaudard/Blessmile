@@ -78,7 +78,11 @@ cloudinary.config({
   api_key: process.env.API_KEY,
   api_secret: process.env.API_SECRET,
 });
-
+console.log("CLOUDINARY:", {
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY ? "OK" : "FALTANDO",
+  api_secret: process.env.API_SECRET ? "OK" : "FALTANDO",
+});
 // ================================
 // 📦 STORAGE
 // ================================
