@@ -15,14 +15,8 @@ require("dotenv").config();
 // ================================
 const app = express();
 
-app.use(cors({
-  origin: "*", // libera tudo (depois você pode restringir)
-  methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type", "x-admin-password"]
-}));
-
+app.use(cors());
 app.use(express.json());
-
 
 // ================================
 // 🔐 MIDDLEWARE ADMIN
@@ -30,32 +24,21 @@ app.use(express.json());
 function checkAdmin(req, res, next) {
   const senha = req.headers["x-admin-password"];
 
-  if (senha !== process.env.ADMIN_PASSWORD) {
+  console.log("Senha recebida:", senha); // DEBUG
+
+  if (!senha || senha !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Acesso negado" });
   }
 
   next();
 }
 
-
 // ================================
-// 🧠 DEBUG DAS ENV (IMPORTANTE)
-// ================================
-console.log("===== TESTE ENV =====");
-console.log("CLOUD_NAME:", process.env.CLOUD_NAME);
-console.log("API_KEY:", process.env.API_KEY ? "OK" : "FALHOU");
-console.log("API_SECRET:", process.env.API_SECRET ? "OK" : "FALHOU");
-console.log("MONGO_URI:", process.env.MONGO_URI ? "OK" : "FALHOU");
-console.log("=====================");
-
-
-// ================================
-// 🧠 CONEXÃO MONGODB
+// 🧠 MONGODB
 // ================================
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("🟢 MongoDB conectado"))
   .catch((err) => console.error("🔴 Erro MongoDB:", err));
-
 
 // ================================
 // 🧱 MODEL
@@ -67,7 +50,6 @@ const EventoSchema = new mongoose.Schema({
 
 const Evento = mongoose.model("Evento", EventoSchema);
 
-
 // ================================
 // ☁️ CLOUDINARY
 // ================================
@@ -77,14 +59,14 @@ cloudinary.config({
   api_secret: process.env.API_SECRET,
 });
 
-
 // ================================
-// 📦 STORAGE CLOUDINARY
+// 📦 STORAGE
 // ================================
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
-    const evento = req.body.evento || "sem-evento";
+
+    const evento = req.body.evento || "sem-nome";
 
     return {
       folder: `eventos/${evento}`,
@@ -96,16 +78,18 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
-
 // ================================
 // 📤 UPLOAD
 // ================================
 app.post("/upload", checkAdmin, upload.array("fotos"), async (req, res) => {
   try {
+    console.log("BODY:", req.body);
+    console.log("FILES:", req.files);
+
     const evento = req.body.evento;
 
     if (!evento) {
-      return res.status(400).json({ error: "Evento não informado" });
+      return res.status(400).json({ error: "Evento não enviado" });
     }
 
     if (!req.files || req.files.length === 0) {
@@ -133,33 +117,25 @@ app.post("/upload", checkAdmin, upload.array("fotos"), async (req, res) => {
 
   } catch (error) {
     console.error("🔥 ERRO REAL:", error);
-    res.status(500).json({
-      error: "Erro no upload",
-      details: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
-
 // ================================
-// 📸 LISTAR FOTOS
+// 📸 LISTAR
 // ================================
 app.get("/evento/:codigo", async (req, res) => {
   try {
-    const codigo = req.params.codigo;
-
-    const evento = await Evento.findOne({ nome: codigo });
+    const evento = await Evento.findOne({ nome: req.params.codigo });
 
     if (!evento) return res.json([]);
 
     res.json(evento.fotos);
 
   } catch (error) {
-    console.error("Erro ao buscar evento:", error);
     res.status(500).json({ error: "Erro ao buscar evento" });
   }
 });
-
 
 // ================================
 // 🧪 TESTE
@@ -167,7 +143,6 @@ app.get("/evento/:codigo", async (req, res) => {
 app.get("/", (req, res) => {
   res.send("API rodando 🚀");
 });
-
 
 // ================================
 // 🚀 START
