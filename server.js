@@ -1,13 +1,10 @@
-// ================================
-// 🚀 IMPORTAÇÕES
-// ================================
-import express from "express";
-import cors from "cors";
-import multer from "multer";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
-import { v2 as cloudinary } from "cloudinary";
-import streamifier from "streamifier";
+const express = require("express");
+const cors = require("cors");
+const multer = require("multer");
+const dotenv = require("dotenv");
+const mongoose = require("mongoose");
+const cloudinary = require("cloudinary").v2;
+const streamifier = require("streamifier");
 
 dotenv.config();
 
@@ -18,12 +15,14 @@ app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// 🔥 CLOUDINARY
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.API_KEY,
   api_secret: process.env.API_SECRET,
 });
 
+// 🔥 MONGO
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("🟢 MongoDB conectado"))
   .catch(err => console.log(err));
@@ -37,6 +36,8 @@ const Foto = mongoose.model("Foto", {
 app.post("/validar-admin", (req, res) => {
   const senha = req.headers["x-admin-password"];
 
+  console.log("Senha recebida:", senha);
+
   if (senha === process.env.ADMIN_PASSWORD) {
     return res.sendStatus(200);
   }
@@ -44,7 +45,7 @@ app.post("/validar-admin", (req, res) => {
   return res.sendStatus(401);
 });
 
-// 🚀 UPLOAD CORRIGIDO
+// 🚀 UPLOAD
 app.post("/upload", upload.array("fotos"), async (req, res) => {
   try {
     const senha = req.headers["x-admin-password"];
@@ -94,10 +95,10 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
   }
 });
 
-// 📸 EVENTO
+// 📸 BUSCAR EVENTO
 app.get("/evento/:codigo", async (req, res) => {
   const fotos = await Foto.find({ evento: req.params.codigo });
   res.json(fotos.map(f => f.url));
 });
 
-app.listen(10000, () => console.log("Servidor rodando"));
+app.listen(10000, () => console.log("Servidor rodando na porta 10000"));
