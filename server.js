@@ -11,39 +11,24 @@ const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 
 // ================================
-// ⚠️ VALIDAÇÃO DE ENV (CRÍTICO)
-// ================================
-const requiredEnv = [
-  "MONGO_URI",
-  "CLOUD_NAME",
-  "API_KEY",
-  "API_SECRET",
-  "ADMIN_PASSWORD",
-];
-
-requiredEnv.forEach((env) => {
-  if (!process.env[env]) {
-    console.error(`❌ Variável ${env} NÃO definida`);
-  }
-});
-
-// ================================
 // ⚙️ CONFIGURAÇÃO DO APP
 // ================================
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: "*", // libera tudo (depois você pode restringir)
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "x-admin-password"]
+}));
+
 app.use(express.json());
+
 
 // ================================
 // 🔐 MIDDLEWARE ADMIN
 // ================================
 function checkAdmin(req, res, next) {
   const senha = req.headers["x-admin-password"];
-
-  if (!senha) {
-    return res.status(401).json({ error: "Senha não enviada" });
-  }
 
   if (senha !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Acesso negado" });
@@ -52,13 +37,25 @@ function checkAdmin(req, res, next) {
   next();
 }
 
+
 // ================================
-// 🧠 MONGODB
+// 🧠 DEBUG DAS ENV (IMPORTANTE)
 // ================================
-mongoose
-  .connect(process.env.MONGO_URI)
+console.log("===== TESTE ENV =====");
+console.log("CLOUD_NAME:", process.env.CLOUD_NAME);
+console.log("API_KEY:", process.env.API_KEY ? "OK" : "FALHOU");
+console.log("API_SECRET:", process.env.API_SECRET ? "OK" : "FALHOU");
+console.log("MONGO_URI:", process.env.MONGO_URI ? "OK" : "FALHOU");
+console.log("=====================");
+
+
+// ================================
+// 🧠 CONEXÃO MONGODB
+// ================================
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("🟢 MongoDB conectado"))
   .catch((err) => console.error("🔴 Erro MongoDB:", err));
+
 
 // ================================
 // 🧱 MODEL
@@ -70,6 +67,7 @@ const EventoSchema = new mongoose.Schema({
 
 const Evento = mongoose.model("Evento", EventoSchema);
 
+
 // ================================
 // ☁️ CLOUDINARY
 // ================================
@@ -78,13 +76,10 @@ cloudinary.config({
   api_key: process.env.API_KEY,
   api_secret: process.env.API_SECRET,
 });
-console.log("CLOUDINARY:", {
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY ? "OK" : "FALTANDO",
-  api_secret: process.env.API_SECRET ? "OK" : "FALTANDO",
-});
+
+
 // ================================
-// 📦 STORAGE
+// 📦 STORAGE CLOUDINARY
 // ================================
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
@@ -93,7 +88,7 @@ const storage = new CloudinaryStorage({
 
     return {
       folder: `eventos/${evento}`,
-      resource_type: "image",
+      format: "jpg",
       public_id: Date.now() + "-" + file.originalname,
     };
   },
@@ -101,14 +96,12 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
+
 // ================================
 // 📤 UPLOAD
 // ================================
 app.post("/upload", checkAdmin, upload.array("fotos"), async (req, res) => {
   try {
-    console.log("📥 BODY:", req.body);
-    console.log("📸 FILES:", req.files);
-
     const evento = req.body.evento;
 
     if (!evento) {
@@ -139,19 +132,17 @@ app.post("/upload", checkAdmin, upload.array("fotos"), async (req, res) => {
     });
 
   } catch (error) {
-    console.error("🔥 ERRO COMPLETO:");
-    console.error("Mensagem:", error.message);
-    console.error("Stack:", error.stack);
-
+    console.error("🔥 ERRO REAL:", error);
     res.status(500).json({
       error: "Erro no upload",
-      details: error.message, // 🔥 agora aparece no frontend
+      details: error.message
     });
   }
 });
 
+
 // ================================
-// 📸 LISTAR
+// 📸 LISTAR FOTOS
 // ================================
 app.get("/evento/:codigo", async (req, res) => {
   try {
@@ -164,10 +155,11 @@ app.get("/evento/:codigo", async (req, res) => {
     res.json(evento.fotos);
 
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao buscar evento:", error);
     res.status(500).json({ error: "Erro ao buscar evento" });
   }
 });
+
 
 // ================================
 // 🧪 TESTE
@@ -175,6 +167,7 @@ app.get("/evento/:codigo", async (req, res) => {
 app.get("/", (req, res) => {
   res.send("API rodando 🚀");
 });
+
 
 // ================================
 // 🚀 START
