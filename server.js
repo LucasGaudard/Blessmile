@@ -8,29 +8,25 @@ const streamifier = require("streamifier");
 
 dotenv.config();
 
-console.log("CLOUD_NAME:", process.env.CLOUD_NAME);
-console.log("API_KEY:", process.env.API_KEY);
-console.log("API_SECRET LENGTH:", process.env.API_SECRET?.length);
-
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// 🔥 MULTER COM LIMITE (evita erro 500 por arquivo grande)
+/* 🔥 MULTER */
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB por arquivo
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
-// 🔥 CLOUDINARY
+/* 🔥 CLOUDINARY */
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.API_KEY,
   api_secret: process.env.API_SECRET,
 });
 
-// 🔥 MONGO
+/* 🔥 MONGO */
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("🟢 MongoDB conectado"))
   .catch(err => console.log(err));
@@ -40,11 +36,9 @@ const Foto = mongoose.model("Foto", {
   url: String,
 });
 
-// 🔐 VALIDAR ADMIN
+/* 🔐 VALIDAR ADMIN */
 app.post("/validar-admin", (req, res) => {
   const senha = req.headers["x-admin-password"];
-
-  console.log("Senha recebida:", senha);
 
   if (senha === process.env.ADMIN_PASSWORD) {
     return res.sendStatus(200);
@@ -53,7 +47,7 @@ app.post("/validar-admin", (req, res) => {
   return res.sendStatus(401);
 });
 
-// 🚀 UPLOAD
+/* 🚀 UPLOAD */
 app.post("/upload", upload.array("fotos"), async (req, res) => {
   try {
     const senha = req.headers["x-admin-password"];
@@ -64,9 +58,6 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
 
     const { evento } = req.body;
 
-    console.log("Evento recebido:", evento);
-    console.log("Arquivos recebidos:", req.files?.length);
-
     if (!evento) {
       return res.status(400).json({ error: "Evento obrigatório" });
     }
@@ -75,12 +66,11 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
       return res.status(400).json({ error: "Sem fotos" });
     }
 
-    // 🔥 SANITIZAÇÃO DO NOME DO EVENTO (EVITA ERRO NO CLOUDINARY)
+    // 🔥 PADRONIZA NOME DO EVENTO
     const eventoSeguro = evento
       .toLowerCase()
+      .trim()
       .replace(/[^a-z0-9-_]/g, "-");
-
-    console.log("Evento sanitizado:", eventoSeguro);
 
     const urls = [];
 
@@ -89,11 +79,7 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
         const stream = cloudinary.uploader.upload_stream(
           { folder: eventoSeguro },
           (error, result) => {
-            if (error) {
-              console.error("🔥 ERRO CLOUDINARY:");
-              console.error(JSON.stringify(error, null, 2));
-              return reject(error);
-            }
+            if (error) return reject(error);
             resolve(result);
           }
         );
@@ -112,17 +98,32 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
     res.json({ success: true, fotos: urls });
 
   } catch (err) {
-    console.error("❌ ERRO GERAL:");
-    console.error(JSON.stringify(err, null, 2));
-
-    res.status(500).json({ error: err.message || "Erro interno" });
+    console.error(err);
+    res.status(500).json({ error: "Erro no upload" });
   }
 });
 
-// 📸 BUSCAR EVENTO
+/* 📸 BUSCAR EVENTO (CORRIGIDO) */
 app.get("/evento/:codigo", async (req, res) => {
-  const fotos = await Foto.find({ evento: req.params.codigo });
-  res.json(fotos.map(f => f.url));
+  try {
+    const codigo = req.params.codigo
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-_]/g, "-");
+
+    const fotos = await Foto.find({ evento: codigo });
+
+    res.json({
+      fotos: fotos.map(f => f.url),
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao buscar fotos" });
+  }
 });
 
-app.listen(10000, () => console.log("Servidor rodando na porta 10000"));
+/* 🚀 START */
+app.listen(10000, () => {
+  console.log("Servidor rodando na porta 10000");
+});
