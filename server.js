@@ -123,6 +123,24 @@ app.get("/evento/:codigo", async (req, res) => {
   }
 });
 
+// 🗑️ DELETAR FOTO
+app.delete("/foto", async (req, res) => {
+  try {
+    const senha = req.headers["x-admin-password"];
+    if (senha !== process.env.ADMIN_PASSWORD) {
+      return res.status(401).json({ error: "Não autorizado" });
+    }
+
+    const { url } = req.body;
+
+    await Foto.deleteOne({ url });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao deletar" });
+  }
+});
+
 /* 🚀 START */
 app.listen(10000, () => {
   console.log("Servidor rodando na porta 10000");
