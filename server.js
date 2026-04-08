@@ -8,6 +8,10 @@ const streamifier = require("streamifier");
 
 dotenv.config();
 
+console.log("CLOUD_NAME:", process.env.CLOUD_NAME);
+console.log("API_KEY:", process.env.API_KEY);
+console.log("API_SECRET LENGTH:", process.env.API_SECRET?.length);
+
 const app = express();
 
 app.use(cors());
