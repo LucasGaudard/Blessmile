@@ -5,6 +5,8 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const cloudinary = require("cloudinary").v2;
 const streamifier = require("streamifier");
+const archiver = require("archiver");
+const axios = require("axios");
 
 dotenv.config();
 
@@ -16,7 +18,7 @@ app.use(express.json());
 /* 🔥 MULTER */
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 /* 🔥 CLOUDINARY */
@@ -66,7 +68,6 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
       return res.status(400).json({ error: "Sem fotos" });
     }
 
-    // 🔥 PADRONIZA NOME DO EVENTO
     const eventoSeguro = evento
       .toLowerCase()
       .trim()
@@ -103,7 +104,7 @@ app.post("/upload", upload.array("fotos"), async (req, res) => {
   }
 });
 
-/* 📸 BUSCAR EVENTO (CORRIGIDO) */
+/* 📸 BUSCAR EVENTO */
 app.get("/evento/:codigo", async (req, res) => {
   try {
     const codigo = req.params.codigo
@@ -123,7 +124,44 @@ app.get("/evento/:codigo", async (req, res) => {
   }
 });
 
-// 🗑️ DELETAR FOTO
+/* 📥 DOWNLOAD ZIP (NOVO) */
+app.get("/download/:codigo", async (req, res) => {
+  try {
+    const codigo = req.params.codigo
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-_]/g, "-");
+
+    const fotos = await Foto.find({ evento: codigo });
+
+    if (!fotos.length) {
+      return res.status(404).json({ error: "Nenhuma foto encontrada" });
+    }
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    res.attachment(`${codigo}.zip`);
+    archive.pipe(res);
+
+    for (let i = 0; i < fotos.length; i++) {
+      const response = await axios.get(fotos[i].url, {
+        responseType: "arraybuffer",
+      });
+
+      archive.append(response.data, {
+        name: `foto-${i + 1}.jpg`,
+      });
+    }
+
+    await archive.finalize();
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erro ao gerar ZIP" });
+  }
+});
+
+/* 🗑️ DELETAR FOTO */
 app.delete("/foto", async (req, res) => {
   try {
     const senha = req.headers["x-admin-password"];

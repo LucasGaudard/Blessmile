@@ -8,6 +8,7 @@
   "type": "commonjs",
   "dependencies": {
     "archiver": "^7.0.1",
+    "axios": "^1.15.2",
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "dotenv": "^17.4.0",
